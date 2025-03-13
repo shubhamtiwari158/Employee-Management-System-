@@ -34,6 +34,7 @@ export default function UserList({ newUser }) {
     }
   }, [searchTerm, users]);
 
+  // Fetch users from API
   const fetchUsers = async () => {
     setIsLoading(true);
     setError(null);
@@ -56,8 +57,67 @@ export default function UserList({ newUser }) {
     }
   };
 
+  // Handle user search
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
+  };
+
+  // Handle user update
+  const handleEdit = async (updatedUser) => {
+    try {
+      console.log("Updating User:", updatedUser); // ✅ Debugging
+  
+      const response = await fetch(`/api/users/${updatedUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: updatedUser.name,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+          linkedinUrl: updatedUser.linkedinUrl,
+        }),
+      });
+  
+      console.log("Response Status:", response.status); // ✅ Debugging
+  
+      const responseData = await response.json();
+      console.log("Response Data:", responseData); // ✅ Debugging
+  
+      if (!response.ok) {
+        console.error("Server Error:", responseData);
+        throw new Error(responseData.error || "Failed to update user");
+      }
+  
+      setUsers(users.map(user => user.id === updatedUser.id ? responseData : user));
+      setFilteredUsers(filteredUsers.map(user => user.id === updatedUser.id ? responseData : user));
+  
+      window.location.reload(); // ✅ Force refresh
+  
+    } catch (error) {
+      console.error("Error updating user:", error);
+      alert(error.message);
+    }
+  };
+  
+  
+
+  // Handle user deletion
+  const handleDelete = async (userId) => {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+
+    try {
+      const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete user');
+      }
+
+      setUsers(users.filter(user => user.id !== userId));
+      setFilteredUsers(filteredUsers.filter(user => user.id !== userId));
+
+    } catch (error) {
+      console.error('Error deleting user:', error);
+    }
   };
 
   if (isLoading) {
@@ -101,7 +161,7 @@ export default function UserList({ newUser }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredUsers.map(user => (
-            <UserCard key={user.id} user={user} />
+            <UserCard key={user.id} user={user} onEdit={handleEdit} onDelete={handleDelete} />
           ))}
         </div>
       )}

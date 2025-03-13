@@ -6,7 +6,7 @@ export default function UserCard({ user, onEdit, onDelete }) {
           src={user.profileImage || "/default-avatar.png"} 
           alt={user.name ? `${user.name}'s profile picture` : "User profile picture"} 
           className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg"
-          onError={(e) => e.target.src = "/default-avatar.png"}
+          onError={(e) => (e.target.src = "/default-avatar.png")}
         />
       </div>
       <div className="p-2">
@@ -27,7 +27,9 @@ export default function UserCard({ user, onEdit, onDelete }) {
           {user.linkedinUrl && (
             <p className="flex justify-center items-center">
               <span className="mr-2">🔗</span>
-              <a href={user.linkedinUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-200">LinkedIn</a>
+              <a href={user.linkedinUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-200">
+                LinkedIn
+              </a>
             </p>
           )}
         </div>

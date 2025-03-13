@@ -63,6 +63,8 @@ export default function UserForm({ onSuccess }) {
       setPreviewUrl('');
       setSuccess('User created successfully!');
 
+      window.location.reload(); 
+
       if (onSuccess) onSuccess();
     } catch (err) {
       setError(err.message);

@@ -1,70 +1,85 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; // Ensure Prisma is correctly imported
+import prisma from '@/lib/prisma';
 
-export async function PUT(request, { params }) {
-  try {
-    console.log("Received Request:", { params }); // ✅ Debugging
+export async function PUT(req, context) {
+    try {
+        const { params } = context; // Correct way to get params
+        const userId = Number(params.id); // Ensure it's a number
+        const body = await req.json();
 
-    if (!params || !params.id) {
-      console.error("Missing user ID in params");
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+        console.log("Update request for user ID:", userId);
+        console.log("Update payload:", body);
+
+        if (!userId) {
+            return new Response(JSON.stringify({ error: "User ID is required" }), { status: 400 });
+        }
+
+        // Check if Prisma is correctly initialized
+        if (!prisma.User) {
+            console.error("Prisma model 'User' not found!");
+            return new Response(JSON.stringify({ error: "Prisma model error" }), { status: 500 });
+        }
+
+        // Update user
+        const updatedUser = await prisma.User.update({
+            where: { id: userId },
+            data: body,
+        });
+
+        return new Response(JSON.stringify(updatedUser), { status: 200 });
+    } catch (error) {
+        console.error("Prisma update error:", error);
+        return new Response(JSON.stringify({ error: "Internal Server Error" }), { status: 500 });
     }
-
-    const userId = Number(params.id);
-    if (isNaN(userId)) {
-      console.error("Invalid user ID:", params.id);
-      return NextResponse.json({ error: "Invalid user ID" }, { status:400 });
-    }
-
-    const data = await request.json();
-    console.log("Received Data:", data); // ✅ Debugging
-
-    // Validate data before updating
-    if (!data.name || !data.email) {
-      console.error("Missing required fields:", data);
-      return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
-    }
-
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        name: data.name,
-        email: data.email,
-        phone: data.phone || null,
-        linkedinUrl: data.linkedinUrl || null,
-      },
-    });
-
-    console.log("Updated User:", updatedUser); // ✅ Debugging
-    return NextResponse.json(updatedUser, { status: 200 });
-
-  } catch (error) {
-    console.error("Internal Server Error:", error); // ✅ Log full error
-    return NextResponse.json({ error: "Internal Server Error", details: error.message }, { status: 500 });
-  }
 }
 
-  
 
-export async function DELETE(request, { params }) {
+// Handle DELETE (Delete User)
+export async function DELETE(req, { params }) {
   try {
-    const userId = Number(params.id);
+    const { id } = params;
+    console.log("Delete request for user ID:", id);
+    
+    if (!id) {
+      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    }
+    
+    // Convert ID to number since it comes as a string from URL params
+    const userId = parseInt(id, 10);
+    
     if (isNaN(userId)) {
-      return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 });
+      return NextResponse.json({ error: "Invalid user ID format" }, { status: 400 });
     }
-
-    await prisma.user.delete({
-      where: { id: userId },
+    
+    // First check if the user exists
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId } 
     });
-
-    return NextResponse.json({ message: 'User deleted successfully' });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      return NextResponse.json(
-        { error: 'Database error: ' + error.message },
-        { status: 500 }
-      );
+    
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-    return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 });
+    
+    // Perform the delete with specific try/catch for Prisma errors
+    try {
+      await prisma.user.delete({ 
+        where: { id: userId } 
+      });
+      
+      console.log("User deleted successfully:", userId);
+      return NextResponse.json({ message: "User deleted successfully" }, { status: 200 });
+    } catch (prismaError) {
+      console.error("Prisma delete error:", prismaError);
+      return NextResponse.json({ 
+        error: "Database delete failed", 
+        details: prismaError.message 
+      }, { status: 500 });
+    }
+  } catch (error) {
+    console.error("Delete user error:", error);
+    return NextResponse.json({ 
+      error: "Server error during delete", 
+      details: error.message 
+    }, { status: 500 });
   }
 }

@@ -9,6 +9,7 @@ export default function UserList({ newUser }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null); // For update/delete errors
 
   // Fetch users on component mount
   useEffect(() => {
@@ -27,25 +28,36 @@ export default function UserList({ newUser }) {
     if (searchTerm.trim() === '') {
       setFilteredUsers(users);
     } else {
-      const filtered = users.filter(user => 
-        user.name.toLowerCase().includes(searchTerm.toLowerCase())
+      const filtered = users.filter(user =>
+        user.name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredUsers(filtered);
     }
   }, [searchTerm, users]);
 
+  // Clear action error after 5 seconds
+  useEffect(() => {
+    if (actionError) {
+      const timer = setTimeout(() => {
+        setActionError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [actionError]);
+
   // Fetch users from API
   const fetchUsers = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetch('/api/users');
       
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch users');
       }
-      
+
       const data = await response.json();
       setUsers(data);
       setFilteredUsers(data);
@@ -62,61 +74,68 @@ export default function UserList({ newUser }) {
     setSearchTerm(e.target.value);
   };
 
-  // Handle user update
+  // Handle user update with improved error handling
   const handleEdit = async (updatedUser) => {
+    setActionError(null); // Clear previous errors
     try {
-      console.log("Updating User:", updatedUser); // ✅ Debugging
-  
+      console.log("Sending update for user:", updatedUser);
+      
       const response = await fetch(`/api/users/${updatedUser.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: updatedUser.name,
-          email: updatedUser.email,
-          phone: updatedUser.phone,
-          linkedinUrl: updatedUser.linkedinUrl,
-        }),
+        body: JSON.stringify(updatedUser),
       });
-  
-      console.log("Response Status:", response.status); // ✅ Debugging
-  
+      
       const responseData = await response.json();
-      console.log("Response Data:", responseData); // ✅ Debugging
-  
+      
       if (!response.ok) {
-        console.error("Server Error:", responseData);
-        throw new Error(responseData.error || "Failed to update user");
+        const errorMsg = responseData.error || responseData.details || "Failed to update user";
+        console.error("Update error response:", responseData);
+        throw new Error(errorMsg);
       }
-  
-      setUsers(users.map(user => user.id === updatedUser.id ? responseData : user));
-      setFilteredUsers(filteredUsers.map(user => user.id === updatedUser.id ? responseData : user));
-  
-      window.location.reload(); // ✅ Force refresh
-  
+
+      setUsers((prevUsers) =>
+        prevUsers.map((user) => (user.id === responseData.id ? responseData : user))
+      );
+      
+      setFilteredUsers((prevFiltered) =>
+        prevFiltered.map((user) => (user.id === responseData.id ? responseData : user))
+      );
+      
+      console.log("User updated successfully:", responseData);
+      
     } catch (error) {
       console.error("Error updating user:", error);
-      alert(error.message);
+      setActionError(`Update failed: ${error.message}`);
     }
   };
-  
-  
 
-  // Handle user deletion
+  // Handle user deletion with improved error handling
   const handleDelete = async (userId) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
-
+    setActionError(null); // Clear previous errors
     try {
-      const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-
+      console.log("Attempting to delete user ID:", userId);
+      
+      const response = await fetch(`/api/users/${userId}`, {
+        method: "DELETE",
+      });
+      
+      const responseData = await response.json().catch(() => ({}));
+      
       if (!response.ok) {
-        throw new Error('Failed to delete user');
+        const errorMsg = responseData.error || responseData.details || "Failed to delete user";
+        console.error("Delete error response:", responseData);
+        throw new Error(errorMsg);
       }
 
-      setUsers(users.filter(user => user.id !== userId));
-      setFilteredUsers(filteredUsers.filter(user => user.id !== userId));
-
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
+      setFilteredUsers(prevFiltered => prevFiltered.filter(user => user.id !== userId));
+      
+      console.log("User deleted successfully:", userId);
+      
     } catch (error) {
-      console.error('Error deleting user:', error);
+      console.error("Error deleting user:", error);
+      setActionError(`Delete failed: ${error.message}`);
     }
   };
 
@@ -132,7 +151,7 @@ export default function UserList({ newUser }) {
     return (
       <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
         <p>Error: {error}</p>
-        <button 
+        <button
           onClick={fetchUsers}
           className="mt-2 bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-sm"
         >
@@ -144,6 +163,18 @@ export default function UserList({ newUser }) {
 
   return (
     <div>
+      {actionError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 flex justify-between items-center">
+          <p>{actionError}</p>
+          <button 
+            onClick={() => setActionError(null)}
+            className="text-red-700 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      
       <div className="mb-6">
         <input
           type="text"
@@ -153,7 +184,7 @@ export default function UserList({ newUser }) {
           className="w-full p-3 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
-      
+
       {filteredUsers.length === 0 ? (
         <div className="text-center py-10 text-gray-500">
           {users.length === 0 ? 'No users found. Add a new user to get started!' : 'No users match your search.'}
